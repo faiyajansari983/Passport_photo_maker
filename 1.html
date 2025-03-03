@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passport Photo Printer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+        }
+        input[type="file"], input[type="number"] {
+            margin-bottom: 20px;
+        }
+        #preview {
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            display: inline-block;
+        }
+        #photoContainer {
+            position: relative;
+            border: 1px dashed #ccc;
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        #photoContainer img {
+            margin: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>Passport Photo Printer</h1>
+
+    <label for="photoUpload">Upload Passport Photo:</label>
+    <input type="file" id="photoUpload" accept="image/*">
+
+    <label for="photoWidth">Photo Width (mm):</label>
+    <input type="number" id="photoWidth" value="35" min="1">
+
+    <label for="photoHeight">Photo Height (mm):</label>
+    <input type="number" id="photoHeight" value="45" min="1">
+
+    <label for="pageWidth">Page Width (mm):</label>
+    <input type="number" id="pageWidth" value="210" min="1">
+
+    <label for="pageHeight">Page Height (mm):</label>
+    <input type="number" id="pageHeight" value="297" min="1">
+
+    <label for="numCopies">Number of Copies:</label>
+    <input type="number" id="numCopies" value="4" min="1">
+
+    <label for="gapSize">Gap Between Photos (mm):</label>
+    <input type="number" id="gapSize" value="5" min="0">
+
+    <button id="generateBtn" disabled>Generate Layout</button>
+    <button id="exportBtn" disabled>Export to PDF</button>
+
+    <div id="preview">
+        <h3>Layout Preview</h3>
+        <div id="photoContainer"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        const { jsPDF } = window.jspdf;
+
+        const photoUpload = document.getElementById('photoUpload');
+        const photoWidthInput = document.getElementById('photoWidth');
+        const photoHeightInput = document.getElementById('photoHeight');
+        const pageWidthInput = document.getElementById('pageWidth');
+        const pageHeightInput = document.getElementById('pageHeight');
+        const numCopiesInput = document.getElementById('numCopies');
+        const gapSizeInput = document.getElementById('gapSize');
+        const generateBtn = document.getElementById('generateBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const photoContainer = document.getElementById('photoContainer');
+
+        let uploadedImage = null;
+
+        photoUpload.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    uploadedImage = new Image();
+                    uploadedImage.src = e.target.result;
+                    uploadedImage.onload = function() {
+                        generateBtn.disabled = false;
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        generateBtn.addEventListener('click', function() {
+            if (!uploadedImage) {
+                alert('Please upload a photo first.');
+                return;
+            }
+
+            const photoWidth = parseFloat(photoWidthInput.value);
+            const photoHeight = parseFloat(photoHeightInput.value);
+            const pageWidth = parseFloat(pageWidthInput.value);
+            const pageHeight = parseFloat(pageHeightInput.value);
+            const numCopies = parseInt(numCopiesInput.value);
+            const gapSize = parseFloat(gapSizeInput.value);
+
+            photoContainer.innerHTML = '';
+            photoContainer.style.width = `${pageWidth}mm`;
+            photoContainer.style.height = `${pageHeight}mm`;
+
+            const photosPerRow = Math.floor((pageWidth + gapSize) / (photoWidth + gapSize));
+            const photosPerColumn = Math.floor((pageHeight + gapSize) / (photoHeight + gapSize));
+
+            let addedCopies = 0;
+
+            for (let row = 0; row < photosPerColumn; row++) {
+                for (let col = 0; col < photosPerRow; col++) {
+                    if (addedCopies >= numCopies) break;
+
+                    const img = document.createElement('img');
+                    img.src = uploadedImage.src;
+                    img.width = photoWidth * 3.78;
+                    img.height = photoHeight * 3.78;
+                    img.style.margin = `${gapSize / 2}px`;
+
+                    photoContainer.appendChild(img);
+                    addedCopies++;
+                }
+                if (addedCopies >= numCopies) break;
+            }
+
+            exportBtn.disabled = false;
+        });
+
+        exportBtn.addEventListener('click', function() {
+            const photoWidth = parseFloat(photoWidthInput.value);
+            const photoHeight = parseFloat(photoHeightInput.value);
+            const pageWidth = parseFloat(pageWidthInput.value);
+            const pageHeight = parseFloat(pageHeightInput.value);
+            const numCopies = parseInt(numCopiesInput.value);
+            const gapSize = parseFloat(gapSizeInput.value);
+
+            const pdf = new jsPDF({
+                orientation: pageWidth > pageHeight ? 'landscape' : 'portrait',
+                unit: 'mm',
+                format: [pageWidth, pageHeight]
+            });
+
+            const photosPerRow = Math.floor((pageWidth + gapSize) / (photoWidth + gapSize));
+            const photosPerColumn = Math.floor((pageHeight + gapSize) / (photoHeight + gapSize));
+
+            let addedCopies = 0;
+            let currentPage = 0;
+
+            while (addedCopies < numCopies) {
+                if (currentPage > 0) {
+                    pdf.addPage([pageWidth, pageHeight]);
+                }
+
+                for (let row = 0; row < photosPerColumn; row++) {
+                    for (let col = 0; col < photosPerRow; col++) {
+                        if (addedCopies >= numCopies) break;
+
+                        const xPos = col * (photoWidth + gapSize);
+                        const yPos = row * (photoHeight + gapSize);
+
+                        pdf.addImage(uploadedImage.src, 'JPEG', xPos, yPos, photoWidth, photoHeight);
+                        addedCopies++;
+                    }
+                    if (addedCopies >= numCopies) break;
+                }
+                currentPage++;
+            }
+
+            pdf.save('passport_photos.pdf');
+        });
+    </script>
+</body>
+</html>
